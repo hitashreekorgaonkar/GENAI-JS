@@ -1,0 +1,36 @@
+<div class="flex justify-center mt-6">
+  <!-- Chat container: 70% width -->
+  <div class="w-[70%] bg-gray-50 rounded-lg shadow-lg p-4 flex flex-col h-[70vh]">
+
+    <!-- Chat messages container -->
+    <div class="flex-1 overflow-y-auto mb-4 space-y-2" #chatContainer>
+      <div *ngFor="let msg of messages">
+        <!-- User message (right) -->
+        <div *ngIf="msg.sender === 'user'" class="flex justify-end">
+          <div class="bg-blue-200 text-blue-900 px-4 py-2 rounded-lg max-w-xs break-words">
+            {{ msg.text }}
+          </div>
+        </div>
+
+        <!-- piyush reply (left) -->
+        <div *ngIf="msg.sender === 'piyush'" class="flex justify-start">
+          <div class="bg-green-200 text-green-900 px-4 py-2 rounded-lg max-w-xs break-words">
+            {{ msg.text }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input box -->
+    <div class="flex">
+      <input type="text" [(ngModel)]="userInput" placeholder="Type your message..." aria-label="Type your message"
+        class="flex-1 border border-purple-200 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
+        (keyup.enter)="sendMessage()">
+      <button (click)="sendMessage()" type="button"
+        class="bg-pink-200 text-pink-900 px-4 py-2 rounded-r-lg hover:bg-pink-300">
+        Send
+      </button>
+    </div>
+
+  </div>
+</div>
