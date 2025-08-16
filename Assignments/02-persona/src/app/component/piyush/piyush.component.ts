@@ -22,7 +22,7 @@ export class PiyushComponent {
 
     this.messages.push({ sender: 'user', text: this.userInput });
 
-    this.chatService.sendMessageToPiyush(this.userInput).subscribe(res => {
+    this.chatService.sendMessage('piyush', this.userInput).subscribe(res => {
       this.messages.push({ sender: 'piyush', text: res.reply });
       this.scrollToBottom();
     });

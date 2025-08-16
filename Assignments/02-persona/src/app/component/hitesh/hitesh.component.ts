@@ -22,7 +22,7 @@ export class HiteshComponent {
 
     this.messages.push({ sender: 'user', text: this.userInput });
 
-    this.chatService.sendMessageToHitesh(this.userInput).subscribe(res => {
+    this.chatService.sendMessage('hitesh', this.userInput).subscribe(res => {
       this.messages.push({ sender: 'hitesh', text: res.reply });
       this.scrollToBottom();
     });

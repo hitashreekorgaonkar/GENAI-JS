@@ -3,22 +3,22 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class ChatService {
+  // Change this for deployed Vercel endpoint
+  // private apiUrl = 'http://localhost:3000/api/chat';
+  private apiUrl = 'https://genai-js-backend.vercel.app/api/chat';
+
   constructor(private http: HttpClient) { }
 
-  sendMessageToHitesh(userMessage: string): Observable<{ reply: string }> {
-    return this.http.post<{ reply: string }>(
-      'http://localhost:3000/api/chat/hitesh',
-      { userMessage }
-    );
-  }
-
-  sendMessageToPiyush(userMessage: string): Observable<{ reply: string }> {
-    return this.http.post<{ reply: string }>(
-      'http://localhost:3000/api/chat/piyush',
-      { userMessage }
-    );
+  sendMessage(
+    persona: 'hitesh' | 'piyush',
+    userMessage: string
+  ): Observable<{ reply: string }> {
+    return this.http.post<{ reply: string }>(this.apiUrl, {
+      persona,
+      userMessage,
+    });
   }
 }
