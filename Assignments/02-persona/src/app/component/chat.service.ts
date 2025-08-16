@@ -16,6 +16,7 @@ export class ChatService {
     persona: 'hitesh' | 'piyush',
     userMessage: string
   ): Observable<{ reply: string }> {
+    console.log("this.apiUrl", this.apiUrl);
     return this.http.post<{ reply: string }>(this.apiUrl, {
       persona,
       userMessage,

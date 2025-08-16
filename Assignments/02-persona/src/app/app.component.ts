@@ -1,14 +1,12 @@
 import { Component } from '@angular/core';
-import { HiteshComponent } from './component/hitesh/hitesh.component';
-import { PiyushComponent } from './component/piyush/piyush.component';
 import { CommonModule } from '@angular/common';
-import { provideHttpClient } from '@angular/common/http';
 import { ChatService } from './component/chat.service';
+import { ChatTemplateComponent } from './component/chat-template/chat-template.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, HiteshComponent, PiyushComponent],
+  imports: [CommonModule, ChatTemplateComponent],
   providers: [ChatService],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']

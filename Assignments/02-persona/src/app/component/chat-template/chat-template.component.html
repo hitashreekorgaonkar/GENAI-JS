@@ -1,0 +1,84 @@
+<div class="">
+  <!-- Selection Buttons -->
+  <div class="flex justify-center items-center h-28 gap-12 bg-red-100">
+    <!-- Hitesh -->
+    <div class="flex flex-col items-center cursor-pointer" (click)="setPersona('hitesh')">
+      <img src="https://img-c.udemycdn.com/user/200_H/272686492_6b9b.jpg" alt="Hitesh Choudhary" [ngClass]="persona === 'hitesh' 
+        ? 'w-16 h-16 rounded-full shadow-xl ring-4 ring-blue-200 scale-110 transition-all duration-300' 
+        : 'w-16 h-16 rounded-full shadow-md hover:scale-105 hover:shadow-lg transition-all duration-300'" />
+      <span class="mt-2 text-sm font-semibold" [ngClass]="persona === 'hitesh' ? 'text-blue-700' : 'text-gray-600'">
+        Hitesh Choudhary
+      </span>
+    </div>
+
+    <!-- Piyush -->
+    <div class="flex flex-col items-center cursor-pointer" (click)="setPersona('piyush')">
+      <img src="https://www.piyushgarg.dev/_next/image?url=%2Fimages%2Favatar.png&w=1080&q=75" alt="Piyush Garg"
+        [ngClass]="persona === 'piyush' 
+        ? 'w-16 h-16 rounded-full shadow-xl ring-4 ring-blue-200 scale-110 transition-all duration-300' 
+        : 'w-16 h-16 rounded-full shadow-md hover:scale-105 hover:shadow-lg transition-all duration-300'" />
+      <span class="mt-2 text-sm font-semibold" [ngClass]="persona === 'piyush' ? 'text-blue-700' : 'text-gray-600'">
+        Piyush Garg
+      </span>
+    </div>
+  </div>
+
+
+  <!-- Chat Section -->
+  <div class="justify-center">
+    <div class="bg-red-50 rounded-lg shadow-lg p-4">
+      <!-- Show whom you are chatting with -->
+      <div class="text-center  text-md font-semibold">
+        You’re chatting with:
+        <span *ngIf="persona === 'hitesh'" class="text-blue-700">Hitesh Choudhary</span>
+        <span *ngIf="persona === 'piyush'" class="text-blue-700">Piyush Garg</span>
+      </div>
+
+      <div class="flex justify-center w-full">
+        <!-- Chat Messages -->
+        <div class="w-full lg:w-[70%] bg-gray-50 rounded-lg shadow-lg p-4 flex flex-col h-[75vh] mt-4">
+          <div class="flex-1 overflow-y-auto mb-4 space-y-2" #chatContainer>
+            <div *ngFor="let msg of messages">
+              <!-- User message (right) -->
+              <div *ngIf="msg.sender === 'user'" class="flex justify-end">
+                <div class="bg-blue-200 text-blue-900 px-4 py-2 rounded-lg max-w-xs break-words">
+                  {{ msg.text }}
+                </div>
+              </div>
+
+              <!-- AI reply (left) -->
+              <div *ngIf="msg.sender !== 'user'" class="flex justify-start">
+                <div [ngClass]="persona === 'hitesh'
+              ? 'bg-green-200 text-green-900'
+              : 'bg-purple-200 text-purple-900'" class="px-4 py-2 rounded-lg max-w-xs break-words">
+                  {{ msg.text }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Typing indicator (outside loop, only while waiting) -->
+            <div *ngIf="isTyping" class="flex justify-start">
+              <div [ngClass]="persona === 'hitesh'
+            ? 'bg-green-200 text-green-900'
+            : 'bg-purple-200 text-purple-900'" class="px-4 py-2 rounded-lg max-w-xs italic">
+                typing...
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Input box -->
+          <div class="flex">
+            <input type="text" [(ngModel)]="userInput" placeholder="Type your message..." aria-label="Type your message"
+              class="flex-1 border border-purple-200 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-300"
+              (keyup.enter)="sendMessage()" />
+            <button (click)="sendMessage()" type="button"
+              class="bg-pink-200 text-pink-900 px-4 py-2 rounded-r-lg hover:bg-pink-300">
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
