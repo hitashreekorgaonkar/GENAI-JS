@@ -1,0 +1,36 @@
+<div class="flex h-screen">
+  <!-- Left Panel -->
+  <div class="w-1/3 p-6 border-r border-gray-300 flex flex-col gap-4">
+    <h2 class="text-xl font-bold">Upload / Paste Documents</h2>
+
+    <input type="text" placeholder="Website URL" [(ngModel)]="websiteUrl" class="border p-2 rounded" />
+
+    <textarea [(ngModel)]="textContent" rows="5" placeholder="Paste text here..." class="border p-2 rounded"></textarea>
+
+    PDF: <input type="file" (change)="onFileChange($event, 'pdf')" accept=".pdf" class="border p-2 rounded" />
+    CSV: <input type="file" (change)="onFileChange($event, 'csv')" accept=".csv" class="border p-2 rounded" />
+
+    <button (click)="submit()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+      Submit
+    </button>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="w-2/3 p-6 flex flex-col">
+    <h2 class="text-xl font-bold mb-2">Chat</h2>
+    <div class="flex-1 border rounded p-4 overflow-y-auto mb-4 flex flex-col gap-2">
+      <div *ngFor="let msg of chatMessages"
+        [ngClass]="msg.role === 'user' ? 'self-end bg-blue-100 p-2 rounded' : 'self-start bg-green-100 p-2 rounded'">
+        <strong>{{ msg.role }}:</strong> {{ msg.content }}
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <input #chatMsg placeholder="Type your message..." class="flex-1 border p-2 rounded" />
+      <button (click)="sendQuery(chatMsg.value); chatMsg.value=''"
+        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+        Send
+      </button>
+    </div>
+  </div>
+</div>
