@@ -1,28 +1,26 @@
 {
   "name": "genai-js-1.0",
   "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start:backend": "node server.js",
-    "start:frontend": "ng serve",
-    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\""
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "@langchain/community": "^0.3.53",
-    "@langchain/core": "^0.3.72",
-    "@langchain/openai": "^0.6.9",
+    "@langchain/community": "^0.3.51",
+    "@langchain/core": "^0.3.71",
+    "@langchain/langgraph": "^0.4.6",
+    "@langchain/openai": "^0.6.8",
     "@langchain/qdrant": "^0.1.3",
     "axios": "^1.11.0",
-    "concurrently": "^8.2.1",
-    "cors": "^2.8.5",
-    "d3-dsv": "2",
     "dotenv": "^17.2.1",
-    "express": "^4.21.2",
-    "formidable": "^2.1.1",
-    "html-to-text": "^9.0.5",
-    "jsdom": "^26.1.0",
-    "multer": "^2.0.2",
+    "js-tiktoken": "^1.0.21",
     "openai": "^5.12.2",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "zod": "^4.0.17"
   }
 }

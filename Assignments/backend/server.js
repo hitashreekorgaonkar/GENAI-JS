@@ -2,36 +2,37 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import fs from "fs";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
-import { RecursiveUrlLoader } from "@langchain/community/document_loaders/web/recursive_url";
 import { compile } from "html-to-text";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { QdrantVectorStore } from "@langchain/qdrant";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import OpenAI from "openai";
+import serverless from "serverless-http";
 
+// Express app
 const app = express();
-const port = process.env.PORT || 3000;
-const upload = multer({ dest: "uploads/" });
-const compiledConvert = compile({ wordwrap: 130 });
-const openaiClient = new OpenAI();
-
 app.use(cors());
 app.use(express.json());
+
+// Multer in-memory storage (serverless-friendly)
+const upload = multer({ storage: multer.memoryStorage() });
+
+const compiledConvert = compile({ wordwrap: 130 });
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // --- Create document from user text ---
 function createDocumentFromText(text, metadata = {}) {
   return { pageContent: text, metadata };
 }
 
-// --- Load documents from all sources ---
-async function loadDocuments({ pdfPath, csvPath, websiteUrl, textContent }) {
+// --- Load documents from sources ---
+async function loadDocuments({ pdfBuffer, csvBuffer, textContent }) {
   let docs = [];
 
-  if (pdfPath && fs.existsSync(pdfPath)) {
-    const pdfLoader = new PDFLoader(pdfPath);
+  if (pdfBuffer) {
+    const pdfLoader = new PDFLoader(pdfBuffer);
     const pdfDocs = await pdfLoader.load();
     const pdfSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: 3000,
@@ -46,8 +47,8 @@ async function loadDocuments({ pdfPath, csvPath, websiteUrl, textContent }) {
     docs = docs.concat(splitPdf);
   }
 
-  if (csvPath && fs.existsSync(csvPath)) {
-    const csvLoader = new CSVLoader(csvPath);
+  if (csvBuffer) {
+    const csvLoader = new CSVLoader(csvBuffer);
     const csvDocs = await csvLoader.load();
     const csvSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: 2000,
@@ -60,26 +61,6 @@ async function loadDocuments({ pdfPath, csvPath, websiteUrl, textContent }) {
       }))
     );
     docs = docs.concat(splitCsv);
-  }
-
-  if (websiteUrl) {
-    const webLoader = new RecursiveUrlLoader(websiteUrl, {
-      extractor: compiledConvert,
-      maxDepth: 1,
-      excludeDirs: [],
-    });
-    const webDocs = await webLoader.load();
-    const webSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 4000,
-      chunkOverlap: 400,
-    });
-    const splitWeb = await webSplitter.splitDocuments(
-      webDocs.map((doc) => ({
-        ...doc,
-        metadata: { ...doc.metadata, source: "Website", url: websiteUrl },
-      }))
-    );
-    docs = docs.concat(splitWeb);
   }
 
   if (textContent) {
@@ -95,18 +76,11 @@ app.post(
   upload.fields([{ name: "pdf" }, { name: "csv" }]),
   async (req, res) => {
     try {
-      const pdfFile = req.files?.pdf?.[0]?.path || null;
-      const csvFile = req.files?.csv?.[0]?.path || null;
-      const websiteUrl = req.body.websiteUrl || null;
-      const textContent = req.body.textContent || null;
+      const pdfBuffer = req.files?.pdf?.[0]?.buffer || null;
+      const csvBuffer = req.files?.csv?.[0]?.buffer || null;
+      const textContent = req.body?.textContent || null;
 
-      const docs = await loadDocuments({
-        pdfPath: pdfFile,
-        csvPath: csvFile,
-        websiteUrl,
-        textContent,
-      });
-
+      const docs = await loadDocuments({ pdfBuffer, csvBuffer, textContent });
       if (!docs.length)
         return res.status(400).json({ message: "No documents provided!" });
 
@@ -116,7 +90,8 @@ app.post(
       });
 
       await QdrantVectorStore.fromDocuments(docs, embeddings, {
-        url: "http://localhost:6333",
+        url: process.env.QDRANT_URL, // Cloud Qdrant URL
+        apiKey: process.env.QDRANT_API_KEY, // Qdrant API key
         collectionName: "user-uploaded-docs",
       });
 
@@ -138,10 +113,12 @@ app.post("/api/chat", async (req, res) => {
       model: "text-embedding-3-large",
       apiKey: process.env.OPENAI_API_KEY,
     });
+
     const vectorStore = await QdrantVectorStore.fromExistingCollection(
       embeddings,
       {
-        url: "http://localhost:6333",
+        url: process.env.QDRANT_URL,
+        apiKey: process.env.QDRANT_API_KEY,
         collectionName: "user-uploaded-docs",
       }
     );
@@ -161,8 +138,7 @@ ${relevantChunks
         c.pageContent
       }\n`
   )
-  .join("\n---\n")}
-`;
+  .join("\n---\n")}`;
 
     const response = await openaiClient.chat.completions.create({
       model: "gpt-4o-mini",
@@ -179,11 +155,8 @@ ${relevantChunks
   }
 });
 
-// --- Test root ---
-app.get("/", (req, res) => {
-  res.send("RAG backend is running!");
-});
+// --- Root test ---
+app.get("/", (req, res) => res.send("RAG backend is running!"));
 
-app.listen(port, () =>
-  console.log(`Server running on http://localhost:${port}`)
-);
+// --- Export handler for Vercel ---
+export const handler = serverless(app);
