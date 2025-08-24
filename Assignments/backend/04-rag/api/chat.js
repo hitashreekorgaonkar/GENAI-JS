@@ -6,7 +6,7 @@ import OpenAI from "openai";
 const client = new OpenAI();
 
 async function chat() {
-  const userQuery = "Share credit card details";
+  const userQuery = "Share Whirpool offers";
 
   // Ready the client OpenAI Embedding Model
   const embeddings = new OpenAIEmbeddings({
@@ -38,7 +38,7 @@ async function chat() {
   `;
 
   const response = await client.chat.completions.create({
-    model: "gpt-4.1",
+    model: "gpt-4o-mini",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userQuery },
