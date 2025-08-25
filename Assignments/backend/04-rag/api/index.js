@@ -1,124 +1,187 @@
 import "dotenv/config";
-import http from "http";
-import fs from "fs";
-import path from "path";
+import express from "express";
+import cors from "cors";
+import multer from "multer";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
+import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { QdrantVectorStore } from "@langchain/qdrant";
 import OpenAI from "openai";
+// import serverless from "serverless-http";
+import { RecursiveUrlLoader } from "@langchain/community/document_loaders/web/recursive_url";
+import { compile } from "html-to-text";
 
-const openaiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Express app
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-const PORT = 3000;
+// Multer in-memory storage (serverless-friendly)
+const upload = multer({ storage: multer.memoryStorage() });
 
-const server = http.createServer(async (req, res) => {
-  // --- CORS headers ---
-  res.setHeader("Access-Control-Allow-Origin", "*"); // or "http://localhost:4200"
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+const compiledConvert = compile({ wordwrap: 130 });
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  // --- Handle preflight requests ---
-  if (req.method === "OPTIONS") {
-    res.writeHead(204); // No Content
-    return res.end();
+// --- Create document from user text ---
+function createDocumentFromText(text, metadata = {}) {
+  return { pageContent: text, metadata };
+}
+
+// --- Load documents from sources ---
+async function loadDocuments({ pdfBuffer, csvBuffer, textContent, url }) {
+  let docs = [];
+
+  if (url) {
+    const loader = new RecursiveUrlLoader(url, {
+      extractor: compiledConvert,
+      maxDepth: 1,
+      excludeDirs: ["/docs/api/"],
+    });
+    const urlDocs = await loader.load();
+    docs = docs.concat(urlDocs);
   }
 
-  console.log("req.url", req.url);
-
-  if (req.method === "POST" && req.url === "/api/index") {
-    let data = [];
-
-    req.on("data", (chunk) => data.push(chunk));
-    req.on("end", async () => {
-      const buffer = Buffer.concat(data);
-
-      // Save uploaded file
-      const uploadPath = path.join("./uploads", "uploaded.pdf");
-      fs.writeFileSync(uploadPath, buffer);
-
-      try {
-        // Load PDF and create embeddings
-        const loader = new PDFLoader(uploadPath);
-        const docs = await loader.load();
-
-        const embeddings = new OpenAIEmbeddings({
-          model: "text-embedding-3-large",
-        });
-        await QdrantVectorStore.fromDocuments(docs, embeddings, {
-          url: "http://localhost:6333",
-          collectionName: "file-collections",
-        });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "File indexed successfully" }));
-      } catch (err) {
-        console.error(err);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to index PDF" }));
-      }
+  if (pdfBuffer) {
+    const pdfLoader = new PDFLoader(pdfBuffer);
+    const pdfDocs = await pdfLoader.load();
+    const pdfSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 3000,
+      chunkOverlap: 300,
     });
-  } else if (req.method === "POST" && req.url === "/api/chat") {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", async () => {
-      try {
-        const { query } = JSON.parse(body);
-
-        const embeddings = new OpenAIEmbeddings({
-          model: "text-embedding-3-large",
-          // openAIApiKey: process.env.OPENAI_API_KEY,
-        });
-
-        const vectorStore = await QdrantVectorStore.fromExistingCollection(
-          embeddings,
-          {
-            url: "http://localhost:6333",
-            collectionName: "file-collections",
-          }
-        );
-
-        const retriever = vectorStore.asRetriever({ k: 3 });
-        const relevantChunk = await retriever.invoke(query);
-
-        const SYSTEM_PROMPT = `
-          You are an AI assistant who helps resolving user query based on the
-          context available to you from a PDF file with the content and page number.
-
-          Only ans based on the available context from file only.
-
-          Context:
-            ${JSON.stringify(relevantChunk)}
-          `;
-
-        const response = await openaiClient.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: query },
-          ],
-        });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({ answer: response.choices[0].message.content })
-        );
-      } catch (err) {
-        console.error(err);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Chat failed" }));
-      }
-    });
-  } else if (req.method === "GET" && req.url === "/") {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Server is working!");
-  } else {
-    res.writeHead(404);
-    res.end("Not found");
+    const splitPdf = await pdfSplitter.splitDocuments(
+      pdfDocs.map((doc) => ({
+        ...doc,
+        metadata: { ...doc.metadata, source: "PDF" },
+      }))
+    );
+    docs = docs.concat(splitPdf);
   }
-});
 
-server.listen(PORT, () =>
-  console.log(`Server running on http://localhost:${PORT}`)
+  if (csvBuffer) {
+    const csvLoader = new CSVLoader(csvBuffer);
+    const csvDocs = await csvLoader.load();
+    const csvSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 2000,
+      chunkOverlap: 100,
+    });
+    const splitCsv = await csvSplitter.splitDocuments(
+      csvDocs.map((doc) => ({
+        ...doc,
+        metadata: { ...doc.metadata, source: "CSV" },
+      }))
+    );
+    docs = docs.concat(splitCsv);
+  }
+
+  if (textContent) {
+    docs.push(createDocumentFromText(textContent, { source: "User-text" }));
+  }
+
+  return docs;
+}
+
+// --- Indexing endpoint ---
+app.post(
+  "/api/index",
+  upload.fields([{ name: "pdf" }, { name: "csv" }]),
+  async (req, res) => {
+    try {
+      const pdfBuffer = req.files?.pdf?.[0]?.buffer || null;
+      const csvBuffer = req.files?.csv?.[0]?.buffer || null;
+      const textContent = req.body?.textContent || null;
+      const url = req.body?.websiteUrl;
+
+      const docs = await loadDocuments({
+        pdfBuffer,
+        csvBuffer,
+        textContent,
+        url,
+      });
+      if (!docs.length)
+        return res.status(400).json({ message: "No documents provided!" });
+
+      const embeddings = new OpenAIEmbeddings({
+        model: "text-embedding-3-large",
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+
+      await QdrantVectorStore.fromDocuments(docs, embeddings, {
+        url: process.env.QDRANT_URL, // Cloud Qdrant URL
+        apiKey: process.env.QDRANT_API_KEY, // Qdrant API key
+        collectionName: "user-uploaded-docs",
+      });
+
+      res.json({ message: "Indexing completed!" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  }
 );
+
+// --- Chat endpoint ---
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ message: "Query is required!" });
+
+    const embeddings = new OpenAIEmbeddings({
+      model: "text-embedding-3-large",
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    const vectorStore = await QdrantVectorStore.fromExistingCollection(
+      embeddings,
+      {
+        url: process.env.QDRANT_URL,
+        apiKey: process.env.QDRANT_API_KEY,
+        collectionName: "user-uploaded-docs",
+      }
+    );
+
+    const retriever = vectorStore.asRetriever({ k: 5 });
+    const relevantChunks = await retriever.getRelevantDocuments(query);
+
+    const SYSTEM_PROMPT = `
+You are an expert AI assistant. Answer user queries based ONLY on the following context:
+
+${relevantChunks
+  .map(
+    (c) =>
+      `Source: ${c.metadata.source || "unknown"}${
+        c.metadata.page ? ", Page: " + c.metadata.page : ""
+      }${c.metadata.url ? ", URL: " + c.metadata.url : ""}\nContent: ${
+        c.pageContent
+      }\n`
+  )
+  .join("\n---\n")}`;
+
+    const response = await openaiClient.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: query },
+      ],
+    });
+
+    res.json({ answer: response.choices[0].message.content });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Root test
+app.get("/", (req, res) => res.send("RAG backend is running!"));
+
+// Local run (only if not in serverless env)
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running at http://localhost:${PORT}`);
+  });
+}
+
+// Export handler for Vercel
+// export const handler = serverless(app);
